@@ -1,11 +1,17 @@
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:gap/gap.dart';
 import 'package:mobile_developer_27_maret_2024/common/assets/color/color.dart';
 import 'package:mobile_developer_27_maret_2024/data/model/data_list_model.dart';
 import 'package:mobile_developer_27_maret_2024/provider/data_list_provider.dart';
 import 'package:mobile_developer_27_maret_2024/provider/video_provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -48,7 +54,8 @@ class _HomePageState extends State<HomePage> {
   bool _isMenuProdukSelectedIndexInitialize = false;
 
   int _menuProdukIndex = -1;
-  _ContentType _menuProdukContentType = _ContentType.image;
+
+  final ReceivePort _port = ReceivePort();
 
   void _videoInitialize() async {
     final previousVideoController = _controller;
@@ -85,9 +92,74 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _unbindBackgroundIsolate() {
+    IsolateNameServer.removePortNameMapping('downloader_send_port');
+  }
+
+  @pragma('vm:entry-point')
+  static void downloadCallback(String id, int status, int progress) {
+    final SendPort? send =
+        IsolateNameServer.lookupPortByName('downloader_send_port');
+    send?.send([id, status, progress]);
+  }
+
+  void _bindBackgroundIsolate() async {
+    final isSuccess = IsolateNameServer.registerPortWithName(
+      _port.sendPort,
+      'downloader_send_port',
+    );
+
+    if (!isSuccess) {
+      _unbindBackgroundIsolate();
+      _bindBackgroundIsolate();
+    }
+
+    _port.listen((dynamic data) {
+      String id = (data as List<dynamic>)[0] as String;
+      DownloadTaskStatus status = DownloadTaskStatus.fromInt(data[1] as int);
+      int progress = data[2] as int;
+
+      print(
+        'Callback on UI isolate: '
+        'task ($id) is in status ($status) and process ($progress)%',
+      );
+
+      setState(() {});
+      print('progress: $progress %');
+    });
+
+    FlutterDownloader.registerCallback(downloadCallback);
+
+    bool isAndroid = Platform.isAndroid;
+    bool isIos = Platform.isIOS;
+
+    Directory? dir;
+
+    if (isAndroid) {
+      dir = await getExternalStorageDirectory();
+    } else if (isIos) {
+      dir = await getDownloadsDirectory();
+    }
+
+    final taskId = await FlutterDownloader.enqueue(
+      url: 'https://images.pexels.com/photos/1092644/pexels-photo-1092644.jpeg',
+      headers: {},
+      // optional: header send with url (auth token etc)
+      savedDir: dir?.path ?? '',
+      showNotification: false,
+      openFileFromNotification: false,
+    );
+
+    // print('uri.parse(): ${Uri.parse('https://images.pexels.com/photos/159711/books-bookstore-book-reading-159711.jpeg').}');
+
+    print('taskId: $taskId');
+  }
+
   @override
   void initState() {
     _videoInitialize();
+
+    _bindBackgroundIsolate();
 
     super.initState();
   }
@@ -95,6 +167,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _controller?.dispose();
+    IsolateNameServer.removePortNameMapping('downloader_send_port');
     super.dispose();
   }
 
@@ -174,8 +247,8 @@ class _HomePageState extends State<HomePage> {
         alignment: Alignment.center,
         padding: const EdgeInsets.only(bottom: 16),
         decoration: const BoxDecoration(
-          // border: Border.all(color: Colors.black),
-        ),
+            // border: Border.all(color: Colors.black),
+            ),
         child: Column(
           children: [
             _buildBodyContent1(context),
@@ -347,8 +420,8 @@ class _HomePageState extends State<HomePage> {
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: const BoxDecoration(
-            // border: Border.all(color: Colors.green),
-          ),
+              // border: Border.all(color: Colors.green),
+              ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -439,8 +512,8 @@ class _HomePageState extends State<HomePage> {
       height: 50,
       width: double.infinity,
       decoration: const BoxDecoration(
-        // border: Border.all(color: Colors.red),
-      ),
+          // border: Border.all(color: Colors.red),
+          ),
       child: listViewBuilder,
     );
   }
@@ -511,11 +584,11 @@ class _HomePageState extends State<HomePage> {
               setState(() {
                 _isMenuProdukSelectedIndexInitialize = true;
                 _menuProdukIndex = 0;
-                if (playList.first.type == 'image') {
-                  _menuProdukContentType = _ContentType.image;
-                } else if (playList.first.type == 'video') {
-                  _menuProdukContentType = _ContentType.video;
-                }
+                // if (playList.first.type == 'image') {
+                //   _menuProdukContentType = _ContentType.image;
+                // } else if (playList.first.type == 'video') {
+                //   _menuProdukContentType = _ContentType.video;
+                // }
               });
             });
           }
@@ -555,6 +628,10 @@ class _HomePageState extends State<HomePage> {
                             onPressed: () {},
                             child: const Text('Simpan'),
                           ),
+                          // trailing: SaveFileButton(
+                          //   onPressedWhenFileNotDownloaded: () {},
+                          //   isFileDownloaded: isFileDownloaded,
+                          // ),
                           isThreeLine: true,
                           contentPadding:
                               const EdgeInsets.only(left: 4.0, right: 4.0),
@@ -621,8 +698,7 @@ class _HomePageState extends State<HomePage> {
             onRefresh: () async {
               providerDataList.fetchDataList();
             },
-            child: _buildContainerBody(context)
-        ),
+            child: _buildContainerBody(context)),
       ),
     );
   }
@@ -630,5 +706,71 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return _buildScaffold(context);
+  }
+}
+
+class SaveFileButton extends StatefulWidget {
+  final void Function() onPressedWhenFileNotDownloaded;
+  final void Function()? onPressedWhenFileDownloaded;
+  final bool isFileDownloaded;
+
+  const SaveFileButton({
+    super.key,
+    required this.onPressedWhenFileNotDownloaded,
+    required this.isFileDownloaded,
+    this.onPressedWhenFileDownloaded,
+  });
+
+  @override
+  State<SaveFileButton> createState() => _SaveFileButtonState();
+}
+
+class _SaveFileButtonState extends State<SaveFileButton> {
+  final String save = 'Simpan';
+
+  final String saved = 'Tersimpan';
+
+  final Color backgroundColorSave = ColorCustom.blue0174F1;
+
+  final Color backgroundColorSaved = ColorCustom.grayD8D8D8;
+
+  Widget filledButton({
+    required void Function()? onPressedWhenFileNotDownloaded,
+    required void Function()? onPressedWhenFileDownloaded,
+    required bool isFileDownloaded,
+  }) {
+    final backgroundColor =
+        isFileDownloaded ? backgroundColorSaved : backgroundColorSave;
+
+    final style = FilledButton.styleFrom(
+      backgroundColor: backgroundColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+
+    final textButton = isFileDownloaded ? saved : save;
+
+    final onPressed = isFileDownloaded
+        ? onPressedWhenFileDownloaded
+        : onPressedWhenFileNotDownloaded;
+
+    return FilledButton(
+      onPressed: onPressed,
+      child: Text(
+        textButton,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return filledButton(
+      onPressedWhenFileNotDownloaded: widget.onPressedWhenFileNotDownloaded,
+      onPressedWhenFileDownloaded: widget.onPressedWhenFileDownloaded,
+      isFileDownloaded: widget.isFileDownloaded,
+    );
   }
 }

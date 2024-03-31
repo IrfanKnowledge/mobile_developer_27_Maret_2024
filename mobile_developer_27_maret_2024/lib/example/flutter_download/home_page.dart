@@ -216,8 +216,8 @@ class _MyHomePageState extends State<MyHomePage> {
       headers: {'auth': 'test_for_sql_encoding'},
       savedDir: _localPath,
       saveInPublicStorage: _saveInPublicStorage,
-      showNotification: true,
-      openFileFromNotification: true,
+      showNotification: false,
+      openFileFromNotification: false,
     );
   }
 

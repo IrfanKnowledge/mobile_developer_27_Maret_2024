@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:mobile_developer_27_maret_2024/provider/data_list_provider.dart';
 import 'package:mobile_developer_27_maret_2024/provider/video_provider.dart';
 import 'package:mobile_developer_27_maret_2024/ui/home_page.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'data/api/api_service.dart';
@@ -18,6 +20,35 @@ void main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+
+  await FlutterDownloader.initialize(
+    debug: true,
+    ignoreSsl: true,
+  );
+
+  // final pathExStorDir = await getExternalStorageDirectory();
+  // final pathExStorDirs = await getExternalStorageDirectories();
+  // final pathTemporary = await getTemporaryDirectory();
+  // final pathSupport = await getApplicationSupportDirectory();
+  //
+  // print('getExternalStorageDirectory(), path: ${pathExStorDir?.path}');
+  // print('getExternalStorageDirectories(), path: $pathExStorDirs');
+  // print('getTemporaryDirectory(), path: $pathTemporary');
+  // print('getApplicationSupportDirectory(), path: $pathSupport');
+  //
+  // final fileExStoreDir = File('${pathExStorDir!.path}/hello.txt');
+  //
+  // fileExStoreDir.writeAsString('hello world flutter!');
+  //
+  // final fileExStoreDirs2 = File('${pathExStorDirs!.last.path}/flutter_flutter.txt');
+  //
+  // fileExStoreDirs2.writeAsString('flutter fltuter flutter error error error!');
+  //
+  // final fileSupport = File('${pathSupport.path}/test_test.txt');
+  //
+  // fileSupport.writeAsString('support support support');
+
+  // final contents = await fileExStoreDir.readAsString();
 
   const enabled = true;
   runApp(

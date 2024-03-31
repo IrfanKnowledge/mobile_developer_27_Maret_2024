@@ -51,6 +51,7 @@ dependencies:
   android_path_provider: ^0.3.0
   device_info_plus: ^8.0.0
   path_provider: ^2.0.11
+  path: ^1.8.3
   permission_handler: ^10.0.0
 
 dev_dependencies:
