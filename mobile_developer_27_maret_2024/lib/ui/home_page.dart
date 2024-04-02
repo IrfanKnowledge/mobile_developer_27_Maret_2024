@@ -34,11 +34,6 @@ enum _MenuText1 {
   const _MenuText1({required this.key, required this.value});
 }
 
-enum _ContentType {
-  image,
-  video;
-}
-
 class _HomePageState extends State<HomePage> {
   VideoPlayerController? _controller;
   bool _isVideoInitialize = false;

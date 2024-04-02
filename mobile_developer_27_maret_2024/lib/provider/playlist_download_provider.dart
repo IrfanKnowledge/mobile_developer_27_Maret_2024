@@ -1,10 +1,10 @@
 import 'dart:io';
-import 'dart:js_util';
 
 import 'package:flutter/material.dart';
 import 'package:mobile_developer_27_maret_2024/data/api/flutter_downloader_service.dart';
 import 'package:mobile_developer_27_maret_2024/data/model/task_info_model.dart';
-import 'package:mobile_developer_27_maret_2024/utils/result_state.dart';
+import 'package:mobile_developer_27_maret_2024/utils/loading_state.dart';
+import 'package:path/path.dart' as p;
 
 class PlayListDownloadProvider extends ChangeNotifier {
   final FlutterDownloaderService _flutterDownloaderService;
@@ -13,48 +13,110 @@ class PlayListDownloadProvider extends ChangeNotifier {
       {required FlutterDownloaderService flutterDownloaderService})
       : _flutterDownloaderService = flutterDownloaderService;
 
-  final List<TaskInfoModel> _listTaskInfoModel = [];
-  String _message = '';
-  ResultState _state = ResultState.initialize;
+  final Map<String, TaskInfoModel> _mapTaskInfoModelById = {};
+  final Map<String, TaskInfoModel> _mapTaskInfoModelByUrl = {};
 
-  String get message => _message;
+  LoadingState<String> _stateTaskInfoModel = const LoadingState.initial();
 
-  ResultState get state => _state;
+  LoadingState<String> get stateTaskInfoModel => _stateTaskInfoModel;
 
-  void download() async {
+  LoadingState<Map<String, bool>> _stateIsDownloadedFilesExist =
+      const LoadingState.initial();
+
+  LoadingState<Map<String, bool>> get stateIsDownloadedFilesExist =>
+      _stateIsDownloadedFilesExist;
+
+  void download(String url) async {
     try {
-      _state = ResultState.loading;
+      _stateTaskInfoModel = const LoadingState.loading();
       notifyListeners();
 
-      final taskId = await _flutterDownloaderService.getFile();
-      _state = ResultState.success;
-      final taskInfoModel = TaskInfoModel(taskId);
-      _listTaskInfoModel.add(taskInfoModel);
+      final taskId = await _flutterDownloaderService.getFile(url);
+      _stateTaskInfoModel = LoadingState.loaded(taskId);
+      final taskInfoModel = TaskInfoModel(taskId, url);
+      _addTaskInfoModel(
+        taskId: taskId,
+        url: url,
+        taskInfoModel: taskInfoModel,
+      );
       notifyListeners();
     } on SocketException catch (e) {
-      _message = e.toString();
-      _state = ResultState.error;
+      _stateTaskInfoModel = LoadingState.error(e.toString());
       notifyListeners();
     } catch (e, stacktrace) {
-      _message = e.toString();
-      _state = ResultState.error;
+      _stateTaskInfoModel = LoadingState.error(e.toString());
       print(
-          'playlist_download_provider, PlayListDownloadProvider, download(), stacktrace: $stacktrace');
+          'playlist_download_provider, PlayListDownloadProvider, download(), error: ${e.toString()}, stacktrace: $stacktrace');
       notifyListeners();
     }
   }
 
-  void setItem(TaskInfoModel taskInfoModel) {
-    final task = _listTaskInfoModel
-        .firstWhere((task) => task.taskId == taskInfoModel.taskId);
-    task
-      ..status = taskInfoModel.status
+  void _addTaskInfoModel({
+    required String taskId,
+    required String url,
+    required TaskInfoModel taskInfoModel,
+  }) {
+    _mapTaskInfoModelByUrl.addAll({
+      url: taskInfoModel,
+    });
+    _mapTaskInfoModelById.addAll({
+      taskId: taskInfoModel,
+    });
+  }
+
+  int getListItemLength() => _mapTaskInfoModelById.length;
+
+  TaskInfoModel getCopyTaskInfoModel(String url) {
+    final taskInfoModel = _mapTaskInfoModelByUrl[url];
+
+    return TaskInfoModel.complete(
+      taskId: taskInfoModel?.taskId,
+      progress: taskInfoModel?.progress,
+      status: taskInfoModel?.status,
+      url: taskInfoModel?.url,
+    );
+  }
+
+  void updateTaskInfo(TaskInfoModel taskInfoModel) {
+    _mapTaskInfoModelById[taskInfoModel.taskId]
+      ?..status = taskInfoModel.status
       ..progress = taskInfoModel.progress;
     notifyListeners();
   }
 
   void deleteItem(TaskInfoModel taskInfoModel) {
-    _listTaskInfoModel.remove(taskInfoModel);
+    final url = _mapTaskInfoModelById[taskInfoModel.taskId]?.url;
+    _mapTaskInfoModelById.remove(taskInfoModel.taskId);
+    _mapTaskInfoModelByUrl.remove(url);
     notifyListeners();
+  }
+
+  void isDownloadedFilesExist(List<String> listUrl) async {
+    try {
+      _stateIsDownloadedFilesExist = const LoadingState.loading();
+      notifyListeners();
+
+      final path = await _flutterDownloaderService.getDirPath();
+
+      final Map<String, bool> mapIsDownloadedFilesExist = {};
+
+      for (var url in listUrl) {
+        final fileName = _flutterDownloaderService.getFileName(url);
+        final isFileExist = await File(p.join(path, fileName)).exists();
+
+        mapIsDownloadedFilesExist.addAll({
+          url: isFileExist,
+        });
+      }
+
+      _stateIsDownloadedFilesExist =
+          LoadingState.loaded(mapIsDownloadedFilesExist);
+      notifyListeners();
+    } catch (e, stacktrace) {
+      _stateIsDownloadedFilesExist = LoadingState.error(e.toString());
+      print(
+          'playlist_download_provider, PlayListDownloadProvider, isDownloadedFilesExist(), error: ${e.toString()}, stacktrace: $stacktrace');
+      notifyListeners();
+    }
   }
 }

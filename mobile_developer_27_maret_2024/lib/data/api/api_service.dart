@@ -26,6 +26,5 @@ class ApiService {
     } else {
       throw 'api_service.dart, ApiService, getDataListModel(), statusCode: $statusCode, response.body: ${response.body}';
     }
-
   }
 }
